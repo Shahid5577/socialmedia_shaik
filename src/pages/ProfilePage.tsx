@@ -1,28 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
 import { db } from '../utils/firebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext'; // Get user context
-import { storage } from '../utils/firebaseConfig';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
+// Import Heroicons for the Back Icon (Updated path for Heroicons v2)
+import { ChevronLeftIcon } from '@heroicons/react/20/solid';
 
 const ProfilePage: React.FC = () => {
   const { currentUser } = useAuth();
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
-  const [profilePicture, setProfilePicture] = useState<File | null>(null);
-  const [profileImageUrl, setProfileImageUrl] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const navigate = useNavigate(); // Initialize navigation hook
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.uid) {
       // Fetch existing user profile from Firestore
       const fetchProfile = async () => {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userRef);
 
-        if (userSnap.exists()) {
-          setName(userSnap.data().name);
-          setBio(userSnap.data().bio);
-          setProfileImageUrl(userSnap.data().profileImageUrl || '');
+          if (userSnap.exists()) {
+            setName(userSnap.data().name);
+            setBio(userSnap.data().bio);
+          }
+        } catch (error) {
+          setErrorMessage('Failed to load profile.');
         }
       };
 
@@ -30,59 +36,54 @@ const ProfilePage: React.FC = () => {
     }
   }, [currentUser]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setProfilePicture(e.target.files[0]);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // If a new profile picture is selected, upload it
-    if (profilePicture) {
-      const storageRef = ref(storage, `profile_pictures/${currentUser?.uid}`);
-      const uploadTask = uploadBytesResumable(storageRef, profilePicture);
+    if (!currentUser?.uid) {
+      setErrorMessage('User is not authenticated.');
+      return;
+    }
 
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          // You can show upload progress here if you want
-        },
-        (error) => {
-          console.error('Error uploading profile picture:', error);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          // Save profile information with the new profile picture URL
-          await setDoc(doc(db, 'users', currentUser?.uid), {
-            name,
-            bio,
-            profileImageUrl: downloadURL,
-          });
-          setProfileImageUrl(downloadURL); // Update state with new profile image URL
-        }
-      );
-    } else {
-      // Save profile info without changing the profile picture
-      await setDoc(doc(db, 'users', currentUser?.uid), {
+    try {
+      // Save profile information to Firestore
+      await setDoc(doc(db, 'users', currentUser.uid), {
         name,
         bio,
-        profileImageUrl,
       });
+
+      // Show success message
+      setSuccessMessage('Profile saved successfully!');
+
+      // Clear the success message after a few seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      setErrorMessage('Failed to save profile.');
     }
+  };
+
+  const handleBack = () => {
+    navigate(-1); // Navigate to the previous page
   };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h2 className="text-3xl font-bold text-center mb-6">Profile</h2>
-      {profileImageUrl && (
-        <div className="mt-6 text-center">
-          <img
-            src={profileImageUrl}
-            alt="Profile"
-            className="rounded-full h-32 w-32 mx-auto object-cover"
-          />
+      <div className="flex items-center mb-6">
+        <button
+          onClick={handleBack}
+          className="bg-gray-200 text-gray-700 p-2 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        >
+          <ChevronLeftIcon className="h-6 w-6" />
+        </button>
+        <h2 className="text-3xl font-bold text-center flex-grow">Profile</h2>
+      </div>
+      {successMessage && (
+        <div className="text-center mb-4 text-green-600 font-semibold">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="text-center mb-4 text-red-600 font-semibold">
+          {errorMessage}
         </div>
       )}
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-lg">
@@ -110,17 +111,6 @@ const ProfilePage: React.FC = () => {
           />
         </div>
 
-        <div className="mb-4">
-          <label htmlFor="profilePicture" className="block text-sm font-semibold text-gray-700">Profile Picture</label>
-          <input
-            type="file"
-            id="profilePicture"
-            onChange={handleFileChange}
-            accept="image/*"
-            className="w-full mt-2 text-sm text-gray-700"
-          />
-        </div>
-
         <button
           type="submit"
           className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -128,8 +118,6 @@ const ProfilePage: React.FC = () => {
           Save Profile
         </button>
       </form>
-
-      
     </div>
   );
 };

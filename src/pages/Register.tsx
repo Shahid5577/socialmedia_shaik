@@ -21,9 +21,13 @@ const Register: React.FC = () => {
     }
   };
 
+  const handleLoginRedirect = () => {
+    navigate("/login"); // Navigate to the login page
+  };
+
   return (
-    <div className="min-h-screen flex justify-center items-center">
-      <form onSubmit={handleRegister} className="p-4 bg-white shadow-md rounded">
+    <div className="min-h-screen flex flex-col justify-center items-center">
+      <form onSubmit={handleRegister} className="p-4 bg-white shadow-md rounded w-full max-w-sm">
         <h2 className="text-lg font-bold mb-4">Register</h2>
         {error && <p className="text-red-500 mb-2">{error}</p>}
         <input
@@ -51,6 +55,12 @@ const Register: React.FC = () => {
           Register
         </button>
       </form>
+      <button
+        onClick={handleLoginRedirect}
+        className="text-blue-500 underline mt-4"
+      >
+        Already have an account? Login
+      </button>
     </div>
   );
 };
